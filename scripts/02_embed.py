@@ -14,6 +14,8 @@ from pathlib import Path
 # 设置为 None 表示自动使用最新的时间戳目录
 # 如果你想固定使用某个时间戳，直接写字符串，例如 "20260407_161619"
 TARGET_TIMESTAMP = None
+MODEL_NAME = "./models/all-MiniLM-L6-v2"    # 改为本地解压后的模型目录
+USE_TFIDF_FALLBACK = True
 # ========================
 
 def get_latest_timestamp(output_dir="outputs"):
@@ -41,7 +43,7 @@ def main(timestamp):
     print(f"加载 {len(texts)} 条意图")
 
     # model_name = "paraphrase-multilingual-MiniLM-L12-v2"
-    model_name = "all-MiniLM-L6-v2"
+    model_name = MODEL_NAME
     print(f"加载模型 {model_name} ...")
     model = SentenceTransformer(model_name)
 

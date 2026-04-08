@@ -39,3 +39,18 @@ intent_clustering/
 ├── requirements.txt
 ├── run_all.sh                         # 一键运行所有脚本
 └── README.md
+```  
+ ##  models 
+从镜像源下载更快，建议先下载压缩包。
+ https://public.ukp.informatik.tu-darmstadt.de/reimers/sentence-transformers/v0.2/
+ 注意事项：
+ 1. 解压目录
+解压后，模型文件应该在 `models/all-MiniLM-L6-v2/` 目录下，里面应该包含 `modules.json`, `config.json`, `pytorch_model.bin` 等文件。
+ 2. 修改使用模型的MODEL_NAME
+编辑 `scripts/02_embed.py`，将 `MODEL_NAME` 从模型名称改为**本地目录的绝对路径或相对路径**。
+ 3. （可选）清理降级逻辑
+如果模型加载成功，你可以将脚本中的 `USE_TFIDF_FALLBACK` 设置为 `False`，或者保留它作为备份。模型成功加载后，不会触发降级。
+ 4. 路径不能有空格或特殊字符**。
+ 5. 模型目录必须是完整的**，即解压后直接包含 `modules.json` 等文件，而不是再嵌套一层子目录。
+
+ 
