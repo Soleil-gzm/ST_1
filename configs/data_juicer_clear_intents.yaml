@@ -1,0 +1,32 @@
+# configs/data_juicer_clear_intents.yaml
+dataset_path: __INPUT_FILE__      # 占位符，脚本会替换为临时 JSONL 的路径
+export_path: __OUTPUT_FILE__      # 占位符，脚本会替换为输出 JSONL 的路径
+text_keys: text
+np: 16
+skip_op_error: true
+open_tracer: true
+trace_num: 10000
+
+process:
+  - whitespace_normalization_mapper:
+  - punctuation_normalization_mapper:
+  - document_deduplicator:                                 
+      lowercase: true                                        
+      ignore_non_character: true    
+#   - text_length_filter:
+#       min_len: 2
+#       max_len: 50
+  - alphanumeric_filter:
+      min_ratio: 0.5
+  - language_id_score_filter:
+      lang: zh
+      min_score: 0.9
+#   - stopwords_filter:
+#       lang: zh
+#       min_ratio: 0.3
+#       max_ratio: 0.9
+  - document_minhash_deduplicator:
+      tokenization: character
+      window_size: 5
+      num_permutations: 64
+      jaccard_threshold: 0.8
