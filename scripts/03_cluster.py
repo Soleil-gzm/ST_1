@@ -11,9 +11,10 @@ import hdbscan
 from pathlib import Path
 
 # ========== 配置 ==========
-# 设置为 None 表示自动使用最新的时间戳目录
-# 如果你想固定使用某个时间戳，直接写字符串，例如 "20260407_161619"
-TARGET_TIMESTAMP = None
+# 输入时间戳：从哪里读取 embeddings.npy
+INPUT_TIMESTAMP = None          # None=自动使用最新，或指定如 "20260407_174104"
+# 输出时间戳：结果保存到哪个目录（建议不同参数使用不同后缀）
+OUTPUT_TIMESTAMP = None         # None=自动生成（输入时间戳 + "_cluster"），或手动指定如 "20260407_174104_min25"
 # ========================
 
 #获取 outputs/ 目录下最新的时间戳子目录
@@ -27,12 +28,26 @@ def get_latest_timestamp(output_dir="outputs"):
     timestamps.sort(reverse=True)
     return timestamps[0]
 
-def main(timestamp):
-    input_dir = Path("outputs") / timestamp
+# def main(timestamp):
+#     input_dir = Path("outputs") / timestamp
+#     emb_path = input_dir / "embeddings.npy"
+#     if not emb_path.exists():
+#         print(f"错误：{emb_path} 不存在，请先运行向量化脚本")
+#         return False
+
+#     embeddings = np.load(emb_path)
+#     print(f"加载向量，形状 {embeddings.shape}")
+
+def main(input_ts, output_ts):
+    input_dir = Path("outputs") / input_ts
     emb_path = input_dir / "embeddings.npy"
     if not emb_path.exists():
         print(f"错误：{emb_path} 不存在，请先运行向量化脚本")
         return False
+
+    output_dir = Path("outputs") / output_ts
+    output_dir.mkdir(parents=True, exist_ok=True)
+    print(f"输出目录: {output_dir}")
 
     embeddings = np.load(emb_path)
     print(f"加载向量，形状 {embeddings.shape}")
@@ -61,7 +76,7 @@ def main(timestamp):
     print("降维中...")
     reducer = umap.UMAP(n_components=15, random_state=42, n_neighbors=30, min_dist=0.0)
     reduced = reducer.fit_transform(embeddings)
-    reduced_path = input_dir / "reduced_embeddings.npy"
+    reduced_path = output_dir / "reduced_embeddings.npy"
     np.save(reduced_path, reduced)
     print(f"降维完成，形状 {reduced.shape}，保存至 {reduced_path}")
 
@@ -81,9 +96,9 @@ def main(timestamp):
     '''
 
     print("聚类中...")
-    clusterer = hdbscan.HDBSCAN(min_cluster_size=15, prediction_data=True)
+    clusterer = hdbscan.HDBSCAN(min_cluster_size=25, prediction_data=True)  # 调整这里
     labels = clusterer.fit_predict(reduced)
-    labels_path = input_dir / "cluster_labels.npy"
+    labels_path = output_dir / "cluster_labels.npy"
     np.save(labels_path, labels)
 
     n_clusters = len(set(labels)) - (1 if -1 in labels else 0)
@@ -94,16 +109,26 @@ def main(timestamp):
     return True
 
 if __name__ == "__main__":
-    if TARGET_TIMESTAMP is None:
-        timestamp = get_latest_timestamp()
-        if timestamp is None:
+    # 确定输入时间戳
+    if INPUT_TIMESTAMP is None:
+        input_ts = get_latest_timestamp()
+        if input_ts is None:
             print("错误：未找到任何时间戳目录，请先运行清洗脚本")
             exit(1)
-        print(f"自动使用最新时间戳: {timestamp}")
+        print(f"自动使用最新输入时间戳: {input_ts}")
     else:
-        timestamp = TARGET_TIMESTAMP
-        print(f"使用固定时间戳: {timestamp}")
-    main(timestamp)
+        input_ts = INPUT_TIMESTAMP
+        print(f"使用指定输入时间戳: {input_ts}")
+
+    # 确定输出时间戳
+    if OUTPUT_TIMESTAMP is None:
+        output_ts = input_ts + "_cluster"   # 在原时间戳后加后缀
+        print(f"自动生成输出时间戳: {output_ts}")
+    else:
+        output_ts = OUTPUT_TIMESTAMP
+        print(f"使用指定输出时间戳: {output_ts}")
+
+    main(input_ts, output_ts)
 
 
     '''
