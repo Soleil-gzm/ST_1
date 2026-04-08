@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-按 cluster_id 分组意图，生成一个便于观察的 HTML 文件
-输入：outputs/{input_timestamp}/clustered_intents.csv
-输出：outputs/{output_timestamp}/cluster_view.html
+按 cluster_id 分组意图，生成一个便于观察的 HTML 文件，并显示每个簇的代表性意图（从 cluster_summary.csv 读取）
+输入：outputs/{timestamp}_cluster/clustered_intents.csv
+      outputs/{timestamp}_cluster/cluster_summary.csv
+输出：outputs/{timestamp}_cluster/cluster_view.html
 """
 
 import csv
@@ -11,11 +12,12 @@ from collections import defaultdict
 import sys
 
 # ========== 配置 ==========
-INPUT_TIMESTAMP = None          # None=自动使用最新（排除 _cluster 后缀）
-OUTPUT_TIMESTAMP = None         # None=自动生成（输入时间戳 + "_cluster"）
+# 指定时间戳（原始数据的时间戳，例如 "20260407_174104"），脚本会自动加上 "_cluster" 后缀
+TARGET_TIMESTAMP = None          # None=自动使用最新（排除 _cluster 后缀）
 # ========================
 
 def get_latest_input_timestamp(output_dir="outputs"):
+    """获取最新的原始数据目录（不含 _cluster 后缀）"""
     output_path = Path(output_dir)
     if not output_path.exists():
         return None
@@ -25,13 +27,27 @@ def get_latest_input_timestamp(output_dir="outputs"):
     timestamps.sort(reverse=True)
     return timestamps[0]
 
-def main(input_ts, output_ts):
-    input_dir = Path("outputs") / input_ts
-    output_dir = Path("outputs") / output_ts
-    csv_path = input_dir / "clustered_intents.csv"
+def main(timestamp):
+    # 输出目录 = 原始时间戳 + "_cluster"
+    output_dir = Path("outputs") / (timestamp + "_cluster")
+    csv_path = output_dir / "clustered_intents.csv"
+    summary_path = output_dir / "cluster_summary.csv"
+
     if not csv_path.exists():
         print(f"错误：{csv_path} 不存在，请先运行 04_analyze.py")
         return
+    if not summary_path.exists():
+        print(f"警告：{summary_path} 不存在，将不显示代表性意图")
+
+    # 读取簇代表性文本
+    representative = {}
+    if summary_path.exists():
+        with open(summary_path, 'r', encoding='utf-8-sig') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                cid = int(row['cluster_id'])
+                rep_text = row['representative_text']
+                representative[cid] = rep_text
 
     # 读取 CSV，按 cluster_id 分组
     groups = defaultdict(list)
@@ -48,7 +64,6 @@ def main(input_ts, output_ts):
 
     html_path = output_dir / "cluster_view.html"
     with open(html_path, 'w', encoding='utf-8') as f:
-        # 使用 f-string 并双写所有 CSS 中的花括号
         f.write(f"""<!DOCTYPE html>
 <html>
 <head>
@@ -114,6 +129,11 @@ def main(input_ts, output_ts):
             cluster_class = "noise" if is_noise else "cluster"
             display_name = "噪声 (Noise)" if is_noise else f"簇 {cid}"
             size = len(intents)
+            if not is_noise and cid in representative:
+                rep_text = representative[cid]
+                if len(rep_text) > 80:
+                    rep_text = rep_text[:77] + "..."
+                display_name += f' <span style="font-size:0.9em; font-weight:normal;">[ "{rep_text}"]</span>'
             f.write(f"""
     <div class="{cluster_class}">
         <div class="cluster-header" onclick="toggleCluster({cid})">
@@ -136,21 +156,14 @@ def main(input_ts, output_ts):
     print(f"已生成 HTML 查看器: {html_path}")
 
 if __name__ == "__main__":
-    if INPUT_TIMESTAMP is None:
-        input_ts = get_latest_input_timestamp()
-        if input_ts is None:
-            print("错误：未找到任何输入时间戳目录（不含 _cluster 后缀），请先运行 04_analyze.py")
+    if TARGET_TIMESTAMP is None:
+        timestamp = get_latest_input_timestamp()
+        if timestamp is None:
+            print("错误：未找到任何时间戳目录（不含 _cluster 后缀），请先运行 04_analyze.py")
             sys.exit(1)
-        print(f"自动使用最新输入时间戳: {input_ts}")
+        print(f"自动使用最新时间戳: {timestamp}")
     else:
-        input_ts = INPUT_TIMESTAMP
-        print(f"使用指定输入时间戳: {input_ts}")
+        timestamp = TARGET_TIMESTAMP
+        print(f"使用指定时间戳: {timestamp}")
 
-    if OUTPUT_TIMESTAMP is None:
-        output_ts = input_ts + "_cluster"
-        print(f"自动生成输出时间戳: {output_ts}")
-    else:
-        output_ts = OUTPUT_TIMESTAMP
-        print(f"使用指定输出时间戳: {output_ts}")
-
-    main(input_ts, output_ts)
+    main(timestamp)
