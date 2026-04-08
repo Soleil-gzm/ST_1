@@ -10,3 +10,4 @@ __pycache__/
 # 其他临时文件
 *.log
 .DS_Store
+models/
