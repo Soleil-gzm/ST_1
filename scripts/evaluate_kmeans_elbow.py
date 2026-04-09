@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
 """
 评估 K-means 聚类的最佳 K 值（肘部法则）
-输入：outputs/{timestamp}_text2vec_kmeans/embeddings_pca.npy
-输出：outputs/{timestamp}_text2vec_kmeans/kmeans_elbow.png
-      outputs/{timestamp}_text2vec_kmeans/kmeans_inertia.csv
+输入：outputs/{timestamp}_base_embeddings/embeddings_pca.npy
+输出：outputs/{timestamp}_base_embeddings/kmeans_inertia.csv
+      outputs/{timestamp}_base_embeddings/kmeans_elbow.png
 """
-
-'''
-解读肘部图
-肘点：曲线从急剧下降变为平缓下降的转折点。该点对应的 K 值通常是最佳选择。
-如果曲线没有明显肘点：可能数据自然簇数较少或分布均匀，可结合业务目标选择 K（例如期望 500 个簇）。
-示例：若曲线在 K=500 后下降缓慢，则 K=500 是较优选择。
-'''
 
 import numpy as np
 import pandas as pd
@@ -22,16 +15,19 @@ import sys
 import time
 
 # ========== 配置 ==========
-INPUT_TIMESTAMP = None          # None=自动使用最新含 _text2vec_kmeans 的目录
-K_VALUES = [100, 200, 500, 1000, 1500, 2000, 2500]  # 测试的 K 值列表
+# 可手动指定 base 目录，None 表示自动使用最新的 _base_embeddings 目录
+BASE_DIR = None
+# 测试的 K 值列表（可根据需要调整）
+# K_VALUES = [100, 200, 500, 1000, 1500, 2000, 2500, 3000]
+K_VALUES = [100, 200]
 # ========================
 
-def get_latest_kmeans_output(output_dir="outputs"):
-    """获取最新的 _text2vec_kmeans 输出目录"""
+def get_latest_base_dir(output_dir="outputs"):
+    """获取最新的以 _base_embeddings 结尾的目录"""
     output_path = Path(output_dir)
     if not output_path.exists():
         return None
-    dirs = [d for d in output_path.iterdir() if d.is_dir() and '_text2vec_kmeans' in d.name]
+    dirs = [d for d in output_path.iterdir() if d.is_dir() and d.name.endswith('_base_embeddings')]
     if not dirs:
         return None
     dirs.sort(reverse=True)
@@ -39,22 +35,22 @@ def get_latest_kmeans_output(output_dir="outputs"):
 
 def main():
     # 确定输入目录
-    if INPUT_TIMESTAMP is None:
-        input_dir = get_latest_kmeans_output()
-        if input_dir is None:
-            print("错误：未找到任何 _text2vec_kmeans 输出目录，请先运行聚类脚本")
+    if BASE_DIR is None:
+        base_dir = get_latest_base_dir()
+        if base_dir is None:
+            print("错误：未找到任何 _base_embeddings 目录，请先运行 02_generate_embeddings.py")
             sys.exit(1)
-        print(f"自动使用最新输出目录: {input_dir}")
+        print(f"自动使用最新 base 目录: {base_dir}")
     else:
-        input_dir = Path("outputs") / INPUT_TIMESTAMP
-        if not input_dir.exists():
-            print(f"错误：目录 {input_dir} 不存在")
+        base_dir = Path(BASE_DIR)
+        if not base_dir.exists():
+            print(f"错误：目录 {base_dir} 不存在")
             sys.exit(1)
 
     # 加载降维后的向量
-    emb_path = input_dir / "embeddings_pca.npy"
+    emb_path = base_dir / "embeddings_pca.npy"
     if not emb_path.exists():
-        print(f"错误：{emb_path} 不存在，请先运行聚类脚本")
+        print(f"错误：{emb_path} 不存在，请先运行 02_generate_embeddings.py")
         sys.exit(1)
     X = np.load(emb_path)
     print(f"加载数据形状: {X.shape}")
@@ -77,7 +73,7 @@ def main():
 
     # 保存 CSV
     df = pd.DataFrame({"K": k_list, "inertia": inertia_list})
-    csv_path = input_dir / "kmeans_inertia.csv"
+    csv_path = base_dir / "kmeans_inertia.csv"
     df.to_csv(csv_path, index=False)
     print(f"已保存 inertia 数据到 {csv_path}")
 
@@ -88,10 +84,8 @@ def main():
     plt.ylabel("Inertia (Sum of squared distances)", fontsize=12)
     plt.title("Elbow Method for Optimal K", fontsize=14)
     plt.grid(True, linestyle='--', alpha=0.7)
-    # 标注可能的肘点（目测）
-    # 计算每个点的二阶导数近似，找曲率最大点（可选）
     plt.tight_layout()
-    png_path = input_dir / "kmeans_elbow.png"
+    png_path = base_dir / "kmeans_elbow.png"
     plt.savefig(png_path, dpi=150)
     plt.close()
     print(f"已保存肘部图到 {png_path}")
