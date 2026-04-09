@@ -91,7 +91,7 @@ def main(timestamp=None):
         count = sum(1 for _ in f)
     print(f"清洗完成，原始 {len(intents)} 条，剩余 {count} 条")
     
-    # 清理临时文件（可选）
+    # 清理临时文件
     temp_jsonl.unlink()
     temp_config.unlink()
     
@@ -99,5 +99,4 @@ def main(timestamp=None):
     return timestamp
 
 if __name__ == "__main__":
-    # 如果直接运行，生成时间戳并执行
     main()
