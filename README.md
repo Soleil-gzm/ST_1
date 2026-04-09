@@ -12,35 +12,43 @@
 ## 环境要求
 - Python 3.8+
 - 建议使用 GPU（可选，CPU 也可运行但较慢）
-
+- 环境reports:  
+- new_sentence_transformers_env.yaml
+- data-juicer_env.yaml
+data-juicer_env.yaml
 ## 安装
 ```bash
 pip install -r requirements.txt
 
 ## 项目结构
-intent_clustering/
+ST_1/
 ├── data/
-│   └── raw_intents.json               # 原始意图数据（仅含 user_intents 字段）
+│   └── user_intents.json               			# 原始意图数据（仅含 user_intents 字段）
 ├── configs/
-│   └── data_juicer_config.yaml        # Data-Juicer 清洗配置
+│   └── data_juicer_clear_config.yaml         # Data-Juicer 清洗配置
 ├── outputs/
-│   ├── cleaned_intents.txt            # 清洗后的意图（每行一个）
-│   ├── embeddings.npy                 # 向量矩阵
-│   ├── reduced_embeddings.npy         # 降维后的向量
-│   ├── cluster_labels.npy             # 聚类标签
-│   ├── clustered_intents.csv          # 带标签的意图（CSV）
-│   ├── cluster_summary.csv            # 簇汇总（大小、代表性文本）
-│   └── cluster_visualization.png      # 可视化散点图
+│   └── 20260407_174104            	 					# data_juicer清洗后的trace文件
+│   │   └── cleaned_intents.txt        				# 清洗后的意图（每行一个）
+│   └── 20260407_174104_text2vec_kmeans       # 降维聚类后的输出文件
+│   │   ├── embeddings.npy (原始768维)         # 原始向量
+│   │   ├── embeddings_pca.npy (降维后)        # 降维后的向量
+│   │   ├── clustered_intents.csv         	  # 聚类后带标签的意图（CSV）
+│   │   ├── cluster_labels.npy            		# 聚类标签向量
+│   │   ├── cluster_summary.csv           		# 簇汇总（大小、代表性文本）
+│   │   ├── cluster_view.html             		# 聚类标签可视化
+│   │   ├── cluster_visualization_interactive.html    		# 可视化视图
+│   │   └── cluster_visualization.png           					# 可视化散点图
 ├── scripts/
-│   ├── 01_clean_with_data_juicer.py   # 调用 Data-Juicer 清洗
-│   ├── 02_embed.py                    # 向量化
-│   ├── 03_cluster.py                  # 降维 + 聚类
-│   └── 04_analyze.py                  # 分析并生成报告
-├── requirements.txt
-├── run_all.sh                         # 一键运行所有脚本
+│   ├── 01_clean_with_data_juicer.py   				# 调用 Data-Juicer 清洗
+│   ├── 02_cluster_kmeans.py          				# 生成向量， PCA 降维 + K-means 聚类
+│   ├── 03_analyze_kmeans.py          				# 分析 K-means 聚类结果并生成报告
+│   └── run_kmeans_pipeline.py        			  # pipeline 一键运行所有脚本
+├── requirements.txt  
+├── new_sentence_transformers_env.yaml       	# new_sentence_transformers环境信息
+├── data-juicer_env.yaml          					 	# data-juicer环境信息
 └── README.md
 ```  
- ##  models 
+##  models 
 从镜像源下载更快，建议先下载压缩包。
  https://public.ukp.informatik.tu-darmstadt.de/reimers/sentence-transformers/v0.2/
  注意事项：
@@ -52,5 +60,3 @@ intent_clustering/
 如果模型加载成功，你可以将脚本中的 `USE_TFIDF_FALLBACK` 设置为 `False`，或者保留它作为备份。模型成功加载后，不会触发降级。
  4. 路径不能有空格或特殊字符**。
  5. 模型目录必须是完整的**，即解压后直接包含 `modules.json` 等文件，而不是再嵌套一层子目录。
-
- 
