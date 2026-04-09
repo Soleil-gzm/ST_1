@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-分析 K-means 聚类结果，生成：
+分析 K-means 聚类结果，生成簇汇总、可视化和簇视图
+自动查找最新的 _kmeans_K* 目录
 - 簇汇总 CSV
 - 静态 PNG 散点图
 - 交互式 HTML 散点图
@@ -16,25 +17,23 @@ import sys
 from collections import defaultdict
 
 # ========== 配置 ==========
-INPUT_TIMESTAMP = None          # 原始文本目录（不含后缀）
-OUTPUT_TIMESTAMP = None         # 聚类结果目录（如 xxx_text2vec_kmeans），None则自动构造
+# 可手动指定聚类结果目录，None 表示自动查找
+CLUSTER_DIR = None
 # ========================
 
-def get_latest_input_timestamp(output_dir="outputs"):
-    """获取最新的原始数据目录（排除包含 '_text2vec_kmeans' 或 '_cluster' 的目录）"""
+def get_latest_kmeans_dir(output_dir="outputs"):
+    """获取最新的 _kmeans_K* 目录"""
     output_path = Path(output_dir)
     if not output_path.exists():
         return None
-    # 排除包含 '_text2vec_kmeans' 或 '_cluster' 的目录
-    timestamps = [d.name for d in output_path.iterdir() 
-                  if d.is_dir() and '_text2vec_kmeans' not in d.name and '_cluster' not in d.name]
-    if not timestamps:
+    dirs = [d for d in output_path.iterdir() if d.is_dir() and '_kmeans_K' in d.name]
+    if not dirs:
         return None
-    timestamps.sort(reverse=True)
-    return timestamps[0]
+    dirs.sort(reverse=True)
+    return dirs[0]
 
 def generate_cluster_view(output_dir, groups, representative):
-    """生成簇视图 HTML"""
+    """生成可折叠的簇视图 HTML"""
     total_clusters = len(groups) - (1 if -1 in groups else 0)
     total_samples = sum(len(v) for v in groups.values())
     noise_samples = len(groups.get(-1, []))
@@ -45,7 +44,7 @@ def generate_cluster_view(output_dir, groups, representative):
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>聚类结果查看器</title>
+    <title>聚类结果查看器 (K-means)</title>
     <style>
         body {{ font-family: Arial, sans-serif; margin: 20px; }}
         h1 {{ color: #333; }}
@@ -73,8 +72,6 @@ def generate_cluster_view(output_dir, groups, representative):
         }}
         .cluster-content ul {{ margin: 0; padding-left: 20px; }}
         .cluster-content li {{ margin: 5px 0; }}
-        .noise {{ background-color: #ffebee; }}
-        .noise .cluster-header {{ background-color: #ffcdd2; }}
         .stats {{ margin-bottom: 20px; }}
     </style>
     <script>
@@ -89,27 +86,23 @@ def generate_cluster_view(output_dir, groups, representative):
     </script>
 </head>
 <body>
-    <h1>聚类结果查看器</h1>
+    <h1>聚类结果查看器 (K-means)</h1>
     <div class="stats">
-        <p>总簇数（不含噪声）: {total_clusters} | 总样本数: {total_samples} | 噪声样本数: {noise_samples}</p>
+        <p>总簇数: {total_clusters} | 总样本数: {total_samples} | 噪声样本数: {noise_samples}</p>
     </div>
 """)
-        sorted_clusters = sorted([(cid, intents) for cid, intents in groups.items() if cid != -1],
-                                 key=lambda x: len(x[1]), reverse=True)
-        if -1 in groups:
-            sorted_clusters.append((-1, groups[-1]))
+        # 按簇大小降序排列
+        sorted_clusters = sorted(groups.items(), key=lambda x: len(x[1]), reverse=True)
         for cid, intents in sorted_clusters:
-            is_noise = (cid == -1)
-            cluster_class = "noise" if is_noise else "cluster"
-            display_name = "噪声 (Noise)" if is_noise else f"簇 {cid}"
             size = len(intents)
-            if not is_noise and cid in representative:
+            display_name = f"簇 {cid}"
+            if cid in representative:
                 rep_text = representative[cid]
                 if len(rep_text) > 80:
                     rep_text = rep_text[:77] + "..."
                 display_name += f' <span style="font-size:0.9em; font-weight:normal;">[代表: "{rep_text}"]</span>'
             f.write(f"""
-    <div class="{cluster_class}">
+    <div class="cluster">
         <div class="cluster-header" onclick="toggleCluster({cid})">
             {display_name} (共 {size} 条意图)
         </div>
@@ -128,17 +121,39 @@ def generate_cluster_view(output_dir, groups, representative):
 </html>""")
     print(f"已生成簇视图 HTML: {html_path}")
 
-def main(input_ts, output_ts):
-    input_dir = Path("outputs") / input_ts
-    output_dir = Path("outputs") / output_ts
+def main():
+    if CLUSTER_DIR is None:
+        output_dir = get_latest_kmeans_dir()
+        if output_dir is None:
+            print("错误：未找到任何 _kmeans_K* 目录，请先运行聚类脚本")
+            sys.exit(1)
+        print(f"自动使用聚类结果目录: {output_dir}")
+    else:
+        output_dir = Path(CLUSTER_DIR)
+        if not output_dir.exists():
+            print(f"错误：目录 {output_dir} 不存在")
+            sys.exit(1)
+
+    # 从目录名提取基础信息
+    # 目录名格式：{timestamp}_base_embeddings_kmeans_K{cluster_num}
+    parts = output_dir.name.split("_kmeans_K")
+    if len(parts) != 2:
+        print(f"错误：无法解析目录名 {output_dir.name}")
+        return
+    base_name = parts[0]   # 例如 "20260409_131912_base_embeddings"
+    cluster_num = parts[1]  # 例如 "1000"
+    # 原始时间戳 = base_name 去掉 "_base_embeddings"
+    raw_timestamp = base_name.replace("_base_embeddings", "")
+    input_dir = output_dir.parent / raw_timestamp
+    base_emb_dir = output_dir.parent / base_name
 
     texts_path = input_dir / "cleaned_intents.txt"
     labels_path = output_dir / "cluster_labels.npy"
-    # 优先使用 PCA 降维后的向量（如果存在），否则使用原始向量
-    emb_path = output_dir / "embeddings_pca.npy"
+    # 优先使用 PCA 降维后的向量（更小，可视化更快）
+    emb_path = base_emb_dir / "embeddings_pca.npy"
     if not emb_path.exists():
-        emb_path = output_dir / "embeddings.npy"
-        print("未找到 embeddings_pca.npy，使用原始向量进行可视化（可能较慢）")
+        emb_path = base_emb_dir / "embeddings.npy"
+        print("未找到 embeddings_pca.npy，使用原始向量（可能较慢）")
 
     if not texts_path.exists():
         print(f"错误：{texts_path} 不存在")
@@ -147,12 +162,13 @@ def main(input_ts, output_ts):
         print(f"错误：{labels_path} 不存在，请先运行聚类脚本")
         return
 
+    # 读取数据
     with open(texts_path, 'r', encoding='utf-8') as f:
         texts = [line.strip() for line in f if line.strip()]
     labels = np.load(labels_path)
     embeddings = np.load(emb_path)
 
-    # 1. 保存带标签的 CSV（如果未生成）
+    # 1. 确保 clustered_intents.csv 存在（如果不存在则生成）
     csv_path = output_dir / "clustered_intents.csv"
     if not csv_path.exists():
         df = pd.DataFrame({"intent": texts, "cluster_id": labels})
@@ -180,7 +196,7 @@ def main(input_ts, output_ts):
     summary_df.to_csv(summary_path, index=False, encoding='utf-8-sig')
     print(f"已保存簇汇总 {summary_path}")
 
-    # 3. 准备用于分组的字典（用于生成簇视图）
+    # 3. 准备分组字典（用于簇视图）
     groups = defaultdict(list)
     for intent, label in zip(texts, labels):
         groups[label].append(intent)
@@ -201,7 +217,7 @@ def main(input_ts, output_ts):
         color = cmap(i % 20)
         plt.scatter(reduced_2d[mask, 0], reduced_2d[mask, 1],
                     c=[color], s=1, alpha=0.6, label=f'Cluster {label}')
-    plt.title("Intent Clustering with K-means (UMAP projection)")
+    plt.title(f"Intent Clustering with K-means (K={cluster_num}, UMAP projection)")
     plt.xlabel("UMAP1")
     plt.ylabel("UMAP2")
     handles, labels_leg = plt.gca().get_legend_handles_labels()
@@ -226,7 +242,7 @@ def main(input_ts, output_ts):
         })
         fig = px.scatter(df_plot, x='x', y='y', color='cluster',
                          hover_data=['intent'],
-                         title=f'Intent Clustering (K-means, {len(unique_labels)} clusters)',
+                         title=f'Intent Clustering (K-means, K={cluster_num})',
                          labels={'cluster': 'Cluster ID'},
                          color_discrete_sequence=px.colors.qualitative.Prism)
         fig.update_traces(marker=dict(size=2, opacity=0.6))
@@ -244,24 +260,4 @@ def main(input_ts, output_ts):
     print(f"最小簇大小: {summary_df['size'].min()}")
 
 if __name__ == "__main__":
-    if INPUT_TIMESTAMP is None:
-        input_ts = get_latest_input_timestamp()
-        if input_ts is None:
-            print("错误：未找到输入时间戳目录")
-            sys.exit(1)
-        print(f"自动使用最新输入时间戳: {input_ts}")
-    else:
-        input_ts = INPUT_TIMESTAMP
-
-    if OUTPUT_TIMESTAMP is None:
-        # 根据输入时间戳自动构造输出目录名
-        output_ts = input_ts + "_text2vec_kmeans"
-        output_dir_check = Path("outputs") / output_ts
-        if not output_dir_check.exists():
-            print(f"错误：输出目录 {output_dir_check} 不存在，请先运行聚类脚本")
-            sys.exit(1)
-        print(f"自动构造输出目录: {output_ts}")
-    else:
-        output_ts = OUTPUT_TIMESTAMP
-
-    main(input_ts, output_ts)
+    main()

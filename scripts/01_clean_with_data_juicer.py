@@ -11,6 +11,11 @@ import os
 import sys
 from pathlib import Path
 import yaml
+import re 
+
+def generalize_entities(text):
+    text = re.sub(r'[王李张刘陈杨黄赵周吴徐孙马朱胡林郭何高][\u4e00-\u9fa5]{1,2}(?:先生|女士|小姐|老师)?', '[NAME]', text)
+    return text
 
 def main(timestamp=None):
     # 如果没有传入时间戳，自动生成
