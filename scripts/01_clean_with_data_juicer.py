@@ -29,7 +29,8 @@ def main(timestamp=None):
     print(f"输出目录: {output_dir}")
     
     # 原始 JSON 文件路径
-    input_json = "data/user_intents.json"
+    # input_json = "data/user_intents.json"
+    input_json = "data/assistant_intents.json"
     if not os.path.exists(input_json):
         print(f"错误：{input_json} 不存在")
         return None
@@ -38,7 +39,9 @@ def main(timestamp=None):
     temp_jsonl = output_dir / "temp_intents.jsonl"
     with open(input_json, 'r', encoding='utf-8') as f:
         data = json.load(f)
-    intents = data['user_intents']
+    # intents = data['user_intents']
+    intents = data['assistant_intents']
+
     
     with open(temp_jsonl, 'w', encoding='utf-8') as f:
         for intent in intents:

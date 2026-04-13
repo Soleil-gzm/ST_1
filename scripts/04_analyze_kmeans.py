@@ -15,21 +15,26 @@ import umap
 from pathlib import Path
 import sys
 from collections import defaultdict
+import json
+from sklearn.metrics import silhouette_score, calinski_harabasz_score, davies_bouldin_score
+
 
 # ========== 配置 ==========
 # 可手动指定聚类结果目录，None 表示自动查找
-CLUSTER_DIR = None
+# CLUSTER_DIR = None
+#指定目录  CLUSTER_DIR = "outputs/20260413_105308_base_embeddings_kmeans_K1000"
+CLUSTER_DIR = '/home/GUO_Zimeng/coding/Sentence_Transformers/ST_1/outputs/20260413_105308_base_embeddings_kmeans_K750'
 # ========================
 
 def get_latest_kmeans_dir(output_dir="outputs"):
-    """获取最新的 _kmeans_K* 目录"""
     output_path = Path(output_dir)
     if not output_path.exists():
         return None
     dirs = [d for d in output_path.iterdir() if d.is_dir() and '_kmeans_K' in d.name]
     if not dirs:
         return None
-    dirs.sort(reverse=True)
+    # 按修改时间降序排序（最新修改的在前）
+    dirs.sort(key=lambda d: d.stat().st_mtime, reverse=True)
     return dirs[0]
 
 def generate_cluster_view(output_dir, groups, representative):
@@ -258,6 +263,45 @@ def main():
     print(f"簇数量: {len(unique_labels)}")
     print(f"最大簇大小: {summary_df['size'].max()}")
     print(f"最小簇大小: {summary_df['size'].min()}")
+
+    # 计算指标
+    '''
+    轮廓系数（Silhouette Score）: 范围：[-1, 1]
+    解读：
+    > 0.5：聚类效果良好，簇内紧致、簇间分离。
+    0.25 ~ 0.5：中等，有一定结构但存在重叠。
+    < 0.25：效果较差，几乎没有明显的簇结构。
+    '''
+    sil = silhouette_score(embeddings, labels)
+
+    '''
+    Calinski-Harabasz (CH) 指数: 范围：无上界，越高越好。
+    解读：CH 指数与簇内离散度成反比、与簇间离散度成正比。
+    但对于不同 K 值不能直接比较绝对值，需要看相对变化。
+    175 这个数值对于 12 万样本、1000 个簇来说偏低（通常理想情况下可达数千甚至上万），表明簇间差异不大。
+    '''
+    ch = calinski_harabasz_score(embeddings, labels)
+
+    '''
+    Davies-Bouldin (DB) 指数: 
+    范围：[0, ∞)，越低越好。0 表示完美分离。
+    解读：
+    < 1.0：聚类效果优秀。
+    1.0 ~ 1.5：可接受。
+    > 2.0：簇间重叠严重，分离度差。
+    '''
+    db = davies_bouldin_score(embeddings, labels)
+
+    metrics = {
+        "silhouette_score": float(sil),
+        "calinski_harabasz_score": float(ch),
+        "davies_bouldin_score": float(db),
+        "num_clusters": len(unique_labels),
+        "total_samples": len(texts)
+    }
+    with open(output_dir / "cluster_metrics.json", "w") as f:
+        json.dump(metrics, f, indent=2)
+    print(f"聚类评估指标已保存到 {output_dir}/cluster_metrics.json")
 
 if __name__ == "__main__":
     main()

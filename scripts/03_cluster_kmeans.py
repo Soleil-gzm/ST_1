@@ -15,7 +15,7 @@ import sys
 
 # ========== 配置 ==========
 INPUT_BASE = None               # None=自动使用最新的 _base_embeddings 目录
-N_CLUSTERS = 250               # K-means 簇数量，可修改
+N_CLUSTERS = 1000               # K-means 簇数量，可修改
 # ========================
 
 def get_latest_base_dir(output_dir="outputs"):

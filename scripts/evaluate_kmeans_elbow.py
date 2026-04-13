@@ -18,8 +18,8 @@ import time
 # 可手动指定 base 目录，None 表示自动使用最新的 _base_embeddings 目录
 BASE_DIR = None
 # 测试的 K 值列表（可根据需要调整）
-# K_VALUES = [100, 200, 500, 1000, 1500, 2000, 2500, 3000]
-K_VALUES = [100, 200]
+K_VALUES = [100, 200, 300,400,500,600,700,800, 1000]
+# K_VALUES = [100, 200]
 # ========================
 
 def get_latest_base_dir(output_dir="outputs"):
